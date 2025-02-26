@@ -4,7 +4,7 @@ import {
   ReferrerAddresses,
   addresses,
   createSwapFromSolanaInstructions,
-  fetchQuote,
+  generateFetchQuoteUrl,
   getSwapFromEvmTxPayload,
 } from "@mayanfinance/swap-sdk";
 import { MessageV0, PublicKey, VersionedTransaction } from "@solana/web3.js";
@@ -46,10 +46,12 @@ import {
   SolanaPlatform,
   SolanaUnsignedTransaction,
 } from "@wormhole-foundation/sdk-solana";
+import axios from "axios";
 import {
   NATIVE_CONTRACT_ADDRESS,
   fetchTokensForChain,
   getTransactionStatus,
+  getUSDCTokenId,
   supportedChains,
   toMayanChainName,
   txStatusToReceipt,
@@ -177,10 +179,26 @@ class MayanRouteBase<N extends Network>
       shuttle: this.protocols.includes('SHUTTLE'),
     };
 
-    const quotes = (await fetchQuote(quoteParams, quoteOpts))
-      .filter((quote) => this.protocols.includes(quote.type));
+    const fetchQuoteUrl = new URL(generateFetchQuoteUrl(quoteParams, quoteOpts));
+    if (!fetchQuoteUrl) {
+      throw new Error("Unable to generate fetch quote URL");
+    }
 
-    if (quotes.length === 0) return undefined;
+    if (!fetchQuoteUrl.searchParams.has('fullList')) {
+      // Attach the fullList param to fetch all quotes
+      fetchQuoteUrl.searchParams.append('fullList', 'true');
+    }
+
+    const res = await axios.get(fetchQuoteUrl.toString());
+    if (res.status !== 200) {
+      throw new Error("Unable to fetch quote", { cause: res });
+    }
+
+    const quotes = res.data?.quotes?.filter((quote: MayanQuote) =>
+      this.protocols.includes(quote.type)
+    );
+
+    if (!quotes || quotes.length === 0) return undefined;
     if (quotes.length === 1) return quotes[0];
 
     // Wormhole SDK routes return only a single quote, but Mayan offers multiple quotes (because 
@@ -519,6 +537,7 @@ export class MayanRoute<N extends Network>
 
   static meta = {
     name: "MayanSwap",
+    provider: "Mayan",
   };
 
   override protocols: MayanProtocol[] = ['WH', 'MCTP', 'SWIFT', 'SHUTTLE'];
@@ -530,6 +549,7 @@ export class MayanRouteSWIFT<N extends Network>
 
   static meta = {
     name: "MayanSwapSWIFT",
+    provider: "Mayan Swift",
   };
 
   override protocols: MayanProtocol[] = ['SWIFT'];
@@ -541,6 +561,7 @@ export class MayanRouteMCTP<N extends Network>
 
   static meta = {
     name: "MayanSwapMCTP",
+    provider: "Mayan MCTP",
   };
 
   override protocols: MayanProtocol[] = ['MCTP'];
@@ -552,6 +573,7 @@ export class MayanRouteWH<N extends Network>
 
   static meta = {
     name: "MayanSwapWH",
+    provider: "Mayan",
   };
 
   override protocols: MayanProtocol[] = ['WH'];
@@ -563,7 +585,32 @@ export class MayanRouteSHUTTLE<N extends Network>
 
   static meta = {
     name: "MayanSwapSHUTTLE",
+    provider: "Mayan Shuttle Beta",
   };
 
   override protocols: MayanProtocol[] = ['SHUTTLE'];
+
+  static override async supportedSourceTokens(fromChain: ChainContext<Network>): Promise<TokenId[]> {
+    if (!supportedChains().includes(fromChain.chain)) {
+      return [];
+    }
+
+    const usdcTokenId = getUSDCTokenId(fromChain.chain, fromChain.network);
+
+    return usdcTokenId ? [usdcTokenId] : [];
+  }
+
+  static override async supportedDestinationTokens<N extends Network>(
+    _token: TokenId,
+    fromChain: ChainContext<N>,
+    toChain: ChainContext<N>
+  ): Promise<TokenId[]> {
+    if (!supportedChains().includes(fromChain.chain) || !supportedChains().includes(toChain.chain)) {
+      return [];
+    }
+
+    const usdcTokenId = getUSDCTokenId(toChain.chain, toChain.network);
+    
+    return usdcTokenId ? [usdcTokenId] : [];
+  }
 }
