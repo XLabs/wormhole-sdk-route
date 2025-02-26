@@ -1,5 +1,5 @@
 {
-  "name": "@mayanfinance/wormhole-sdk-route",
+  "name": "@xlabs/mayan-wormhole-sdk-route",
   "version": "1.4.0",
   "license": "Apache-2.0",
   "main": "./dist/cjs/index.js",
@@ -36,9 +36,9 @@
     "@mayanfinance/swap-sdk": "10.2.0"
   },
   "peerDependencies": {
-    "@wormhole-foundation/sdk-connect": "^1.0.0",
-    "@wormhole-foundation/sdk-evm": "^1.0.0",
-    "@wormhole-foundation/sdk-solana": "^1.0.0",
+    "@wormhole-foundation/sdk-connect": "^1.10.0",
+    "@wormhole-foundation/sdk-evm": "^1.10.0",
+    "@wormhole-foundation/sdk-solana": "^1.10.0",
     "@solana/web3.js": "^1.95.8",
     "ethers": "^6"
   },
